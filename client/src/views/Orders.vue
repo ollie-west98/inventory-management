@@ -5,6 +5,56 @@
       <p>{{ t('orders.description') }}</p>
     </div>
 
+    <!-- Submitted Restocking Orders — shown only when restocking orders exist -->
+    <div
+      v-if="restockingOrders.length > 0"
+      class="card restocking-section"
+      style="border-left: 3px solid #6366f1;"
+    >
+      <div class="card-header restocking-header" @click="restockingExpanded = !restockingExpanded">
+        <h3 class="card-title">Submitted Restocking Orders ({{ restockingOrders.length }})</h3>
+        <span class="collapse-arrow" :class="{ expanded: restockingExpanded }">&#9654;</span>
+      </div>
+      <div v-if="restockingExpanded" class="table-container">
+        <table class="orders-table restocking-table">
+          <thead>
+            <tr>
+              <th class="col-order-number">Order #</th>
+              <th class="col-items">Items</th>
+              <th class="col-date">Order Date</th>
+              <th class="col-date">Expected Delivery</th>
+              <th class="col-lead">Lead Time</th>
+              <th class="col-value">Total Value</th>
+              <th class="col-status">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="order in restockingOrders" :key="order.id">
+              <td class="col-order-number"><strong>{{ order.order_number }}</strong></td>
+              <td class="col-items">
+                <details class="items-details">
+                  <summary class="items-summary">{{ order.items.length }} item{{ order.items.length !== 1 ? 's' : '' }}</summary>
+                  <div class="items-dropdown">
+                    <div v-for="item in order.items" :key="item.sku" class="item-entry">
+                      <span class="item-name">{{ item.name }}</span>
+                      <span class="item-meta">Qty: {{ item.quantity }} @ ${{ item.unit_cost }}</span>
+                    </div>
+                  </div>
+                </details>
+              </td>
+              <td class="col-date">{{ formatDate(order.order_date) }}</td>
+              <td class="col-date">{{ formatDate(order.expected_delivery) }}</td>
+              <td class="col-lead">14 days</td>
+              <td class="col-value"><strong>${{ order.total_value.toLocaleString() }}</strong></td>
+              <td class="col-status">
+                <span class="badge submitted">{{ order.status }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div v-if="loading" class="loading">{{ t('common.loading') }}</div>
     <div v-else-if="error" class="error">{{ error }}</div>
     <div v-else>
@@ -105,6 +155,19 @@ export default {
       getCurrentFilters
     } = useFilters()
 
+    // Restocking orders section
+    const restockingOrders = ref([])
+    const restockingExpanded = ref(true)
+
+    const loadRestockingOrders = async () => {
+      try {
+        restockingOrders.value = await api.getRestockingOrders()
+      } catch (err) {
+        // Non-fatal: restocking section just stays hidden
+        console.error('Failed to load restocking orders:', err)
+      }
+    }
+
     const loadOrders = async () => {
       try {
         loading.value = true
@@ -153,13 +216,18 @@ export default {
       })
     }
 
-    onMounted(loadOrders)
+    onMounted(() => {
+      loadOrders()
+      loadRestockingOrders()
+    })
 
     return {
       t,
       loading,
       error,
       orders,
+      restockingOrders,
+      restockingExpanded,
       getOrdersByStatus,
       getOrderStatusClass,
       formatDate,
@@ -275,5 +343,39 @@ export default {
 .item-meta {
   font-size: 0.813rem;
   color: #64748b;
+}
+
+/* Restocking orders section */
+.restocking-section {
+  margin-bottom: 1.25rem;
+}
+
+.restocking-header {
+  cursor: pointer;
+  user-select: none;
+}
+.restocking-header:hover { background: #f8fafc; }
+
+.collapse-arrow {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  transition: transform 0.2s;
+  display: inline-block;
+  transform: rotate(90deg);
+}
+.collapse-arrow.expanded {
+  transform: rotate(270deg);
+}
+
+.restocking-table {
+  table-layout: fixed;
+}
+
+.col-lead   { width: 90px; }
+.col-status { width: 110px; }
+
+.badge.submitted {
+  background: #ede9fe;
+  color: #4c1d95;
 }
 </style>
